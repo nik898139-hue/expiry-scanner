@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Сканер сроков</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #111;
+      color: #fff;
+      padding: 15px;
+    }
+    video {
+      width: 100%;
+      border-radius: 10px;
+      background: #000;
+    }
+    button {
+      width: 100%;
+      padding: 15px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .start { background: #2563eb; color: white; }
+    .scan { background: #16a34a; color: white; }
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+    .ok { background: #14532d; }
+    .warn { background: #78350f; }
+    .bad { background: #7f1d1d; }
+  </style>
+</head>
+<body>
+
+<h2>📷 Сканер срока годности</h2>
+
+<video id="video" autoplay playsinline></video>
+
+<button class="start" onclick="startCamera()">Включить камеру</button>
+<button class="scan" onclick="scan()">Сканировать</button>
+
+<div id="result" class="result"></div>
+
+<script>
+let video = document.getElementById('video');
+
+async function startCamera() {
+  try {
+    let stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" }
+    });
+    video.srcObject = stream;
+  } catch (e) {
+    alert("Не удалось включить камеру");
+  }
+}
+
+async function scan() {
+  let canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  let ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+
+  document.getElementById('result').innerText = "Сканирую...";
+
+  const { data } = await Tesseract.recognize(canvas, 'eng');
+
+  let text = data.text;
+
+  let date = extractDate(text);
+
+  if (!date) {
+    document.getElementById('result').innerText = "Не нашёл дату";
+    return;
+  }
+
+  checkDate(date);
+}
+
+function extractDate(text) {
+  let match = text.match(/(\d{2})[./-](\d{2})[./-]?(\d{2,4})?/);
+  if (!match) return null;
+
+  let day = match[1];
+  let month = match[2];
+  let year = match[3] || new Date().getFullYear();
+
+  if (year.length === 2) year = "20" + year;
+
+  return new Date(year, month - 1, day);
+}
+
+function checkDate(date) {
+  let now = new Date();
+  let diff = (date - now) / (1000 * 60 * 60 * 24);
+
+  let result = document.getElementById('result');
+
+  if (diff < 0) {
+    result.className = "result bad";
+    result.innerText = "❌ ПРОСРОЧЕНО";
+  } else if (diff < 2) {
+    result.className = "result warn";
+    result.innerText = "⚠️ СКОРО СРОК";
+  } else {
+    result.className = "result ok";
+    result.innerText = "✅ НОРМА";
+  }
+}
+</script>
+
+</body>
+</html>
